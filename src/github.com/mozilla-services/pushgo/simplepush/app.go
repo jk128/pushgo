@@ -409,6 +409,12 @@ func (a *Application) close() error {
 			errors = append(errors, err)
 		}
 	}
+	if m := a.Metrics(); m != nil {
+		// Stop the metrics reporter.
+		if err := m.Close(); err != nil {
+			errors = append(errors, err)
+		}
+	}
 	if len(errors) > 0 {
 		return errors
 	}

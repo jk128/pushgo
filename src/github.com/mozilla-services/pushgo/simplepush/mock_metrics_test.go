@@ -29,16 +29,6 @@ func (_m *MockStatistician) EXPECT() *_MockStatisticianRecorder {
 	return _m.recorder
 }
 
-func (_m *MockStatistician) Init(_param0 *Application, _param1 interface{}) error {
-	ret := _m.ctrl.Call(_m, "Init", _param0, _param1)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-func (_mr *_MockStatisticianRecorder) Init(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Init", arg0, arg1)
-}
-
 func (_m *MockStatistician) Snapshot() map[string]interface{} {
 	ret := _m.ctrl.Call(_m, "Snapshot")
 	ret0, _ := ret[0].(map[string]interface{})
@@ -49,50 +39,157 @@ func (_mr *_MockStatisticianRecorder) Snapshot() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Snapshot")
 }
 
-func (_m *MockStatistician) IncrementBy(_param0 string, _param1 int64) {
-	_m.ctrl.Call(_m, "IncrementBy", _param0, _param1)
+func (_m *MockStatistician) IncrementByRate(name string, delta int64, rate float32) {
+	_m.ctrl.Call(_m, "IncrementByRate", name, delta, rate)
+}
+
+func (_mr *_MockStatisticianRecorder) IncrementByRate(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IncrementByRate", arg0, arg1, arg2)
+}
+
+func (_m *MockStatistician) IncrementBy(name string, delta int64) {
+	_m.ctrl.Call(_m, "IncrementBy", name, delta)
 }
 
 func (_mr *_MockStatisticianRecorder) IncrementBy(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "IncrementBy", arg0, arg1)
 }
 
-func (_m *MockStatistician) Increment(_param0 string) {
-	_m.ctrl.Call(_m, "Increment", _param0)
+func (_m *MockStatistician) Increment(name string) {
+	_m.ctrl.Call(_m, "Increment", name)
 }
 
 func (_mr *_MockStatisticianRecorder) Increment(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Increment", arg0)
 }
 
-func (_m *MockStatistician) Decrement(_param0 string) {
-	_m.ctrl.Call(_m, "Decrement", _param0)
+func (_m *MockStatistician) Decrement(name string) {
+	_m.ctrl.Call(_m, "Decrement", name)
 }
 
 func (_mr *_MockStatisticianRecorder) Decrement(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Decrement", arg0)
 }
 
-func (_m *MockStatistician) Timer(_param0 string, _param1 time.Duration) {
-	_m.ctrl.Call(_m, "Timer", _param0, _param1)
+func (_m *MockStatistician) Timer(name string, duration time.Duration) {
+	_m.ctrl.Call(_m, "Timer", name, duration)
 }
 
 func (_mr *_MockStatisticianRecorder) Timer(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Timer", arg0, arg1)
 }
 
-func (_m *MockStatistician) Gauge(_param0 string, _param1 int64) {
-	_m.ctrl.Call(_m, "Gauge", _param0, _param1)
+func (_m *MockStatistician) TimerRate(name string, duration time.Duration, rate float32) {
+	_m.ctrl.Call(_m, "TimerRate", name, duration, rate)
+}
+
+func (_mr *_MockStatisticianRecorder) TimerRate(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "TimerRate", arg0, arg1, arg2)
+}
+
+func (_m *MockStatistician) Gauge(name string, value int64) {
+	_m.ctrl.Call(_m, "Gauge", name, value)
 }
 
 func (_mr *_MockStatisticianRecorder) Gauge(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Gauge", arg0, arg1)
 }
 
-func (_m *MockStatistician) GaugeDelta(_param0 string, _param1 int64) {
-	_m.ctrl.Call(_m, "GaugeDelta", _param0, _param1)
+func (_m *MockStatistician) GaugeDelta(name string, delta int64) {
+	_m.ctrl.Call(_m, "GaugeDelta", name, delta)
 }
 
 func (_mr *_MockStatisticianRecorder) GaugeDelta(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GaugeDelta", arg0, arg1)
+}
+
+func (_m *MockStatistician) Close() error {
+	ret := _m.ctrl.Call(_m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockStatisticianRecorder) Close() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
+}
+
+// Mock of StatsClient interface
+type MockStatsClient struct {
+	ctrl     *gomock.Controller
+	recorder *_MockStatsClientRecorder
+}
+
+// Recorder for MockStatsClient (not exported)
+type _MockStatsClientRecorder struct {
+	mock *MockStatsClient
+}
+
+func NewMockStatsClient(ctrl *gomock.Controller) *MockStatsClient {
+	mock := &MockStatsClient{ctrl: ctrl}
+	mock.recorder = &_MockStatsClientRecorder{mock}
+	return mock
+}
+
+func (_m *MockStatsClient) EXPECT() *_MockStatsClientRecorder {
+	return _m.recorder
+}
+
+func (_m *MockStatsClient) Inc(name string, value int64, rate float32) error {
+	ret := _m.ctrl.Call(_m, "Inc", name, value, rate)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockStatsClientRecorder) Inc(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Inc", arg0, arg1, arg2)
+}
+
+func (_m *MockStatsClient) Dec(name string, value int64, rate float32) error {
+	ret := _m.ctrl.Call(_m, "Dec", name, value, rate)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockStatsClientRecorder) Dec(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Dec", arg0, arg1, arg2)
+}
+
+func (_m *MockStatsClient) Timing(name string, delta int64, rate float32) error {
+	ret := _m.ctrl.Call(_m, "Timing", name, delta, rate)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockStatsClientRecorder) Timing(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Timing", arg0, arg1, arg2)
+}
+
+func (_m *MockStatsClient) Gauge(name string, value int64, rate float32) error {
+	ret := _m.ctrl.Call(_m, "Gauge", name, value, rate)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockStatsClientRecorder) Gauge(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Gauge", arg0, arg1, arg2)
+}
+
+func (_m *MockStatsClient) GaugeDelta(name string, delta int64, rate float32) error {
+	ret := _m.ctrl.Call(_m, "GaugeDelta", name, delta, rate)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockStatsClientRecorder) GaugeDelta(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GaugeDelta", arg0, arg1, arg2)
+}
+
+func (_m *MockStatsClient) Close() error {
+	ret := _m.ctrl.Call(_m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockStatsClientRecorder) Close() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }

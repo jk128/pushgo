@@ -73,8 +73,7 @@ func Test_GCMSend(t *testing.T) {
 	mckLogger.EXPECT().ShouldLog(gomock.Any()).Return(true).AnyTimes()
 	mckLogger.EXPECT().Log(gomock.Any(), gomock.Any(), gomock.Any(),
 		gomock.Any()).AnyTimes()
-	mckStat := &TestMetrics{}
-	mckStat.Init(nil, nil)
+	mckStat := &Metrics{storeSnapshots: true}
 	mckStore := NewMockStore(mockCtrl)
 	mckEndHandler := NewMockHandler(mockCtrl)
 
@@ -122,7 +121,8 @@ func Test_GCMSend(t *testing.T) {
 		ok, err := testGcm.Send(uaid, vers, data)
 		So(err, ShouldBeNil)
 		So(ok, ShouldEqual, true)
-		So(mckStat.Counters["ping.gcm.retry"], ShouldEqual, 1)
-		So(mckStat.Counters["ping.gcm.success"], ShouldEqual, 1)
+		snapshot := mckStat.Snapshot()
+		So(snapshot["counter.ping.gcm.retry"], ShouldEqual, 1)
+		So(snapshot["counter.ping.gcm.success"], ShouldEqual, 1)
 	})
 }

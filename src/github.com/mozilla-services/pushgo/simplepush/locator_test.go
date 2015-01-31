@@ -243,6 +243,7 @@ func TestLocatorReadyNotify(t *testing.T) {
 	gomock.InOrder(
 		mckLocator.EXPECT().Close(),
 		recvStore.EXPECT().Close(),
+		recvStat.EXPECT().Close(),
 	)
 	if err := recvApp.Close(); err != nil {
 		t.Errorf("Error closing peer: %s", err)
@@ -251,6 +252,7 @@ func TestLocatorReadyNotify(t *testing.T) {
 	gomock.InOrder(
 		mckLocator.EXPECT().Close(),
 		sndStore.EXPECT().Close(),
+		sndStat.EXPECT().Close(),
 	)
 	if err := sndApp.Close(); err != nil {
 		t.Errorf("Error closing self: %s", err)

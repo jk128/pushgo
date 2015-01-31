@@ -6,7 +6,7 @@ package simplepush
 
 import (
 	"bytes"
-	"strconv"
+	"math/rand"
 	"strings"
 	"sync"
 	"text/template"
@@ -28,7 +28,7 @@ func cleanMetricPart(r rune) rune {
 }
 
 type trec struct {
-	Count uint64
+	Count int64
 	Avg   float64
 }
 
@@ -49,34 +49,44 @@ type MetricsConfig struct {
 }
 
 type Statistician interface {
-	Init(*Application, interface{}) error
 	Snapshot() map[string]interface{}
-	IncrementBy(string, int64)
-	Increment(string)
-	Decrement(string)
-	Timer(string, time.Duration)
-	Gauge(string, int64)
-	GaugeDelta(string, int64)
+	IncrementByRate(name string, delta int64, rate float32)
+	IncrementBy(name string, delta int64)
+	Increment(name string)
+	Decrement(name string)
+	Timer(name string, duration time.Duration)
+	TimerRate(name string, duration time.Duration, rate float32)
+	Gauge(name string, value int64)
+	GaugeDelta(name string, delta int64)
+	Close() error
+}
+
+type StatsClient interface {
+	Inc(name string, value int64, rate float32) error
+	Dec(name string, value int64, rate float32) error
+	Timing(name string, delta int64, rate float32) error
+	Gauge(name string, value int64, rate float32) error
+	GaugeDelta(name string, delta int64, rate float32) error
+	Close() error
 }
 
 type Metrics struct {
-	sync.RWMutex
+	mu      sync.RWMutex     // Protects the following lazily-initialized fields.
+	counter map[string]int64 // Counter snapshots.
+	timer   timer            // Timer snapshots.
+	gauge   map[string]int64 // Gauge snapshots.
 
-	counter       map[string]int64 // Counter snapshots.
-	counterPrefix string           // Optional prefix for counter names.
-	counterSuffix string           // Optional suffix for counter names.
-
-	timer       timer // Timer snapshots.
-	timerPrefix string
-	timerSuffix string
-
-	gauge       map[string]int64 // Gauge snapshots.
-	gaugePrefix string
-	gaugeSuffix string
+	// Affixes by metric type.
+	counterPrefix string
+	counterSuffix string
+	timerPrefix   string
+	timerSuffix   string
+	gaugePrefix   string
+	gaugeSuffix   string
 
 	app            *Application
 	logger         *SimpleLogger
-	statsd         *statsd.Client
+	statsd         StatsClient
 	born           time.Time
 	storeSnapshots bool
 }
@@ -119,13 +129,8 @@ func (m *Metrics) Init(app *Application, config interface{}) (err error) {
 			LogFields{"error": err.Error()})
 		return err
 	}
-	m.born = time.Now()
-
-	if m.storeSnapshots = conf.StoreSnapshots; m.storeSnapshots {
-		m.counter = make(map[string]int64)
-		m.timer = make(timer)
-		m.gauge = make(map[string]int64)
-	}
+	m.born = timeNow()
+	m.storeSnapshots = conf.StoreSnapshots
 
 	return nil
 }
@@ -224,7 +229,7 @@ func (m *Metrics) Snapshot() map[string]interface{} {
 	}
 	oldMetrics := make(map[string]interface{})
 	// copy the old metrics
-	m.RLock()
+	m.mu.RLock()
 	for k, v := range m.counter {
 		oldMetrics[m.formatCounter(k, "counter")] = v
 	}
@@ -234,33 +239,26 @@ func (m *Metrics) Snapshot() map[string]interface{} {
 	for k, v := range m.gauge {
 		oldMetrics[m.formatGauge(k, "gauge")] = v
 	}
-	m.RUnlock()
-	age := time.Now().Unix() - m.born.Unix()
+	m.mu.RUnlock()
+	age := timeNow().Unix() - m.born.Unix()
 	oldMetrics[m.formatMetric("server.age", "", "")] = age
 	return oldMetrics
 }
 
+func (m *Metrics) IncrementByRate(metric string, count int64, rate float32) {
+	m.storeCounter(metric, count, rate)
+	if m.statsd == nil {
+		return
+	}
+	if count >= 0 {
+		m.statsd.Inc(m.formatCounter(metric), count, rate)
+		return
+	}
+	m.statsd.Dec(m.formatCounter(metric), -count, rate)
+}
+
 func (m *Metrics) IncrementBy(metric string, count int64) {
-	if m.storeSnapshots {
-		m.Lock()
-		met := m.counter[metric] + count
-		m.counter[metric] = met
-		m.Unlock()
-	}
-
-	if m.logger.ShouldLog(DEBUG) {
-		m.logger.Debug("metrics", "counter."+metric,
-			LogFields{"delta": strconv.FormatInt(count, 10),
-				"type": "counter"})
-	}
-
-	if statsd := m.statsd; statsd != nil {
-		if count >= 0 {
-			statsd.Inc(m.formatCounter(metric), count, 1.0)
-		} else {
-			statsd.Dec(m.formatCounter(metric), count, 1.0)
-		}
-	}
+	m.IncrementByRate(metric, count, 1.0)
 }
 
 func (m *Metrics) Increment(metric string) {
@@ -271,108 +269,133 @@ func (m *Metrics) Decrement(metric string) {
 	m.IncrementBy(metric, -1)
 }
 
-func (m *Metrics) Timer(metric string, duration time.Duration) {
+func (m *Metrics) storeCounter(metric string, count int64, rate float32) {
+	if !m.storeSnapshots {
+		return
+	}
+	delta := sampleCount(count, rate)
+	if delta == 0 {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.counter == nil {
+		m.counter = make(map[string]int64)
+	}
+	m.counter[metric] += delta
+}
+
+func (m *Metrics) resetCounter() (c map[string]int64) {
+	m.mu.Lock()
+	c, m.counter = m.counter, nil
+	m.mu.Unlock()
+	return
+}
+
+func (m *Metrics) TimerRate(metric string, duration time.Duration, rate float32) {
 	// statsd supports millisecond granularity.
 	value := int64(duration / time.Millisecond)
-
-	if m.storeSnapshots {
-		m.Lock()
-		if t, ok := m.timer[metric]; !ok {
-			m.timer[metric] = trec{
-				Count: 1,
-				Avg:   float64(value),
-			}
-		} else {
-			// calculate running average
-			t.Count = t.Count + 1
-			t.Avg = t.Avg + (float64(value)-t.Avg)/float64(t.Count)
-			m.timer[metric] = t
-		}
-		m.Unlock()
-	}
-
-	if m.logger.ShouldLog(DEBUG) {
-		m.logger.Debug("metrics", "timer."+metric,
-			LogFields{"value": strconv.FormatInt(value, 10),
-				"type": "timer"})
-	}
+	m.storeTimer(metric, value, rate)
 	if m.statsd != nil {
-		m.statsd.Timing(m.formatTimer(metric), value, 1.0)
+		m.statsd.Timing(m.formatTimer(metric), value, rate)
 	}
+}
+
+func (m *Metrics) Timer(metric string, duration time.Duration) {
+	m.TimerRate(metric, duration, 1.0)
+}
+
+func (m *Metrics) storeTimer(metric string, value int64, rate float32) {
+	if !m.storeSnapshots {
+		return
+	}
+	count := sampleCount(1, rate)
+	if count == 0 {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.timer == nil {
+		m.timer = make(timer)
+	}
+	if t, ok := m.timer[metric]; ok {
+		// calculate running average
+		t.Count = t.Count + count
+		t.Avg = (t.Avg*float64(t.Count-count) + float64(value*count)) / float64(t.Count)
+		m.timer[metric] = t
+		return
+	}
+	m.timer[metric] = trec{
+		Count: count,
+		Avg:   float64(value),
+	}
+}
+
+func (m *Metrics) resetTimer() (t timer) {
+	m.mu.Lock()
+	t, m.timer = m.timer, nil
+	m.mu.Unlock()
+	return
 }
 
 func (m *Metrics) Gauge(metric string, value int64) {
-	if m.storeSnapshots {
-		m.Lock()
-		m.gauge[metric] = value
-		m.Unlock()
+	m.storeGauge(metric, value, false)
+	if m.statsd == nil {
+		return
 	}
-
-	if statsd := m.statsd; statsd != nil {
-		if value >= 0 {
-			statsd.Gauge(m.formatGauge(metric), value, 1.0)
-			return
-		}
-		// Gauges cannot be set to negative values; sign prefixes indicate deltas.
-		if err := statsd.Gauge(m.formatGauge(metric), 0, 1.0); err != nil {
-			return
-		}
-		statsd.GaugeDelta(m.formatGauge(metric), value, 1.0)
+	if value >= 0 {
+		m.statsd.Gauge(m.formatGauge(metric), value, 1.0)
+		return
 	}
+	// Gauges cannot be set to negative values; sign prefixes indicate deltas.
+	if err := m.statsd.Gauge(m.formatGauge(metric), 0, 1.0); err != nil {
+		return
+	}
+	m.statsd.GaugeDelta(m.formatGauge(metric), value, 1.0)
 }
 
 func (m *Metrics) GaugeDelta(metric string, delta int64) {
-	if m.storeSnapshots {
-		m.Lock()
-		gauge := m.gauge[metric]
-		m.gauge[metric] = gauge + delta
-		m.Unlock()
-	}
-
+	m.storeGauge(metric, delta, true)
 	if m.statsd != nil {
 		m.statsd.GaugeDelta(m.formatGauge(metric), delta, 1.0)
 	}
 }
 
-// == provide just enough metrics for testing.
-type TestMetrics struct {
-	sync.RWMutex
-	Counters map[string]int64
-	Gauges   map[string]int64
+func (m *Metrics) storeGauge(metric string, value int64, delta bool) {
+	if !m.storeSnapshots {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.gauge == nil {
+		m.gauge = make(map[string]int64)
+	}
+	if delta {
+		m.gauge[metric] += value
+	} else {
+		m.gauge[metric] = value
+	}
 }
 
-func (r *TestMetrics) Init(app *Application, config interface{}) (err error) {
-	r.Counters = make(map[string]int64)
-	r.Gauges = make(map[string]int64)
+func (m *Metrics) Close() (err error) {
+	if m.statsd != nil {
+		err = m.statsd.Close()
+	}
 	return
 }
 
-func (r *TestMetrics) Snapshot() map[string]interface{} {
-	return make(map[string]interface{})
-}
-func (r *TestMetrics) IncrementBy(metric string, count int64) {
-	r.Lock()
-	defer r.Unlock()
-	r.Counters[metric] = r.Counters[metric] + count
-}
-func (r *TestMetrics) Increment(metric string) {
-	r.IncrementBy(metric, 1)
-}
-func (r *TestMetrics) Decrement(metric string) {
-	r.IncrementBy(metric, -1)
-}
-func (r *TestMetrics) Timer(metric string, duration time.Duration) {}
-func (r *TestMetrics) Gauge(metric string, val int64) {
-	r.Lock()
-	defer r.Unlock()
-	r.Gauges[metric] = val
-}
-func (r *TestMetrics) GaugeDelta(metric string, delta int64) {
-	r.Lock()
-	defer r.Unlock()
-	if m, ok := r.Gauges[metric]; ok {
-		r.Gauges[metric] = m + delta
-	} else {
-		r.Gauges[metric] = delta
+// sampleCount adjusts a value to account for the sample rate, returning 0 if
+// the value should not be recorded. The sample rate is clipped to the
+// interval [0, 1].
+func sampleCount(value int64, rate float32) int64 {
+	if rate >= 1 {
+		return value
 	}
+	if rate <= 0 {
+		return 0
+	}
+	if rand.Float32() < rate {
+		return 0
+	}
+	return int64(float32(value) * (1 / rate))
 }

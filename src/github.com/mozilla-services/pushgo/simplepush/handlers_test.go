@@ -20,8 +20,7 @@ func newTestHandler(tb TBLoggingInterface) *Application {
 
 	tlogger, _ := NewLogger(&TestLogger{DEBUG, tb})
 
-	mx := &TestMetrics{}
-	mx.Init(nil, nil)
+	mx := new(Metrics)
 	store := &NoStore{logger: tlogger, maxChannels: 10}
 	pping := &NoopPing{}
 	app := NewApplication()

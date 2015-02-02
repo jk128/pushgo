@@ -178,8 +178,6 @@ func TestSocketListenerConfig(t *testing.T) {
 }
 
 func TestSocketOrigin(t *testing.T) {
-	var err error
-
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 
@@ -214,15 +212,19 @@ func TestSocketOrigin(t *testing.T) {
 
 	uaid := "5e1e5984569c4f00bf4bea47754a6403"
 	gomock.InOrder(
-		mckStat.EXPECT().Increment("client.socket.connect"),
+		mckStat.EXPECT().IncrementByRate(
+			"client.socket.connect", int64(1), float32(0.1)),
 		mckStore.EXPECT().CanStore(0).Return(true),
 		mckRouter.EXPECT().Register(uaid),
-		mckStat.EXPECT().Increment("updates.client.hello"),
+		mckStat.EXPECT().IncrementByRate(
+			"updates.client.hello", int64(1), float32(0.1)),
 		mckStore.EXPECT().FetchAll(uaid, gomock.Any()).Return(nil, nil, nil),
-		mckStat.EXPECT().Timer("client.flush", gomock.Any()),
+		mckStat.EXPECT().TimerRate("client.flush", gomock.Any(), float32(0.1)),
 		mckRouter.EXPECT().Unregister(uaid),
-		mckStat.EXPECT().Timer("client.socket.lifespan", gomock.Any()),
-		mckStat.EXPECT().Increment("client.socket.disconnect"),
+		mckStat.EXPECT().TimerRate(
+			"client.socket.lifespan", gomock.Any(), float32(0.1)),
+		mckStat.EXPECT().IncrementByRate(
+			"client.socket.disconnect", int64(1), float32(0.1)),
 	)
 
 	origin := &url.URL{Scheme: "https", Host: "example.com"}
@@ -307,9 +309,12 @@ func TestSocketInvalidOrigin(t *testing.T) {
 	mckLogger.EXPECT().Log(gomock.Any(), gomock.Any(),
 		gomock.Any(), gomock.Any()).AnyTimes()
 	mckStat := NewMockStatistician(mockCtrl)
-	mckStat.EXPECT().Increment("client.socket.connect").AnyTimes()
-	mckStat.EXPECT().Timer("client.socket.lifespan", gomock.Any()).AnyTimes()
-	mckStat.EXPECT().Increment("client.socket.disconnect").AnyTimes()
+	mckStat.EXPECT().IncrementByRate(
+		"client.socket.connect", int64(1), float32(0.1)).AnyTimes()
+	mckStat.EXPECT().TimerRate(
+		"client.socket.lifespan", gomock.Any(), float32(0.1)).AnyTimes()
+	mckStat.EXPECT().IncrementByRate(
+		"client.socket.disconnect", int64(1), float32(0.1)).AnyTimes()
 	mckStore := NewMockStore(mockCtrl)
 	mckRouter := NewMockRouter(mockCtrl)
 

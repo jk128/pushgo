@@ -197,23 +197,34 @@ func TestLocatorReadyNotify(t *testing.T) {
 	go recvApp.Router().Start(errChan)
 
 	// First and second routing attempts to self.
-	sndStat.EXPECT().Increment("updates.routed.unknown").Times(2)
+	sndStat.EXPECT().IncrementByRate(
+		"updates.routed.unknown", int64(1), float32(0.1)).Times(2)
 
 	// Initial routing attempt to peer.
-	recvStat.EXPECT().Increment("updates.routed.unknown")
+	recvStat.EXPECT().IncrementByRate(
+		"updates.routed.unknown", int64(1), float32(0.1))
 	// Client connects to peer.
-	recvStat.EXPECT().Increment("client.socket.connect")
+	recvStat.EXPECT().IncrementByRate(
+		"client.socket.connect", int64(1), float32(0.1))
 	recvStore.EXPECT().CanStore(0).Return(true)
-	recvStat.EXPECT().Increment("updates.client.hello")
+	recvStat.EXPECT().IncrementByRate(
+		"updates.client.hello", int64(1), float32(0.1))
 	recvStore.EXPECT().FetchAll(uaid, gomock.Any()).Return(nil, nil, nil)
-	recvStat.EXPECT().Timer("client.flush", gomock.Any())
+	recvStat.EXPECT().TimerRate(
+		"client.flush", gomock.Any(), float32(0.1))
 	// Second routing attempt to peer.
-	recvStat.EXPECT().Increment("updates.routed.incoming")
-	recvStat.EXPECT().Increment("updates.sent")
-	recvStat.EXPECT().Timer("client.flush", gomock.Any())
-	recvStat.EXPECT().Increment("updates.routed.received")
-	recvStat.EXPECT().Timer("client.socket.lifespan", gomock.Any())
-	recvStat.EXPECT().Increment("client.socket.disconnect")
+	recvStat.EXPECT().IncrementByRate(
+		"updates.routed.incoming", int64(1), float32(0.1))
+	recvStat.EXPECT().IncrementByRate(
+		"updates.sent", int64(1), float32(0.1))
+	recvStat.EXPECT().TimerRate(
+		"client.flush", gomock.Any(), float32(0.1))
+	recvStat.EXPECT().IncrementByRate(
+		"updates.routed.received", int64(1), float32(0.1))
+	recvStat.EXPECT().TimerRate(
+		"client.socket.lifespan", gomock.Any(), float32(0.1))
+	recvStat.EXPECT().IncrementByRate(
+		"client.socket.disconnect", int64(1), float32(0.1))
 
 	// Initial routing attempt should fail; the WebSocket listener shouldn't
 	// accept client connections before the locator is ready.

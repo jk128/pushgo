@@ -387,11 +387,14 @@ func TestEndpointPinger(t *testing.T) {
 			}
 			gomock.InOrder(
 				mckStore.EXPECT().KeyToIDs("123").Return(uaid, "456", nil),
-				mckStat.EXPECT().Increment("updates.appserver.incoming"),
+				mckStat.EXPECT().IncrementByRate(
+					"updates.appserver.incoming", int64(1), float32(0.1)),
 				mckPinger.EXPECT().Send(uaid, int64(1257894000), "").Return(true, nil),
 				mckPinger.EXPECT().CanBypassWebsocket().Return(true),
-				mckStat.EXPECT().Increment("updates.appserver.received"),
-				mckStat.EXPECT().Timer("updates.handled", gomock.Any()),
+				mckStat.EXPECT().IncrementByRate(
+					"updates.appserver.received", int64(1), float32(0.1)),
+				mckStat.EXPECT().TimerRate(
+					"updates.handled", gomock.Any(), float32(0.1)),
 			)
 			eh.ServeMux().ServeHTTP(resp, req)
 
@@ -418,13 +421,16 @@ func TestEndpointPinger(t *testing.T) {
 			}
 			gomock.InOrder(
 				mckStore.EXPECT().KeyToIDs("123").Return(uaid, "456", nil),
-				mckStat.EXPECT().Increment("updates.appserver.incoming"),
+				mckStat.EXPECT().IncrementByRate("updates.appserver.incoming",
+					int64(1), float32(0.1)),
 				mckPinger.EXPECT().Send(uaid, int64(1257894000), data).Return(true, nil),
 				mckPinger.EXPECT().CanBypassWebsocket().Return(false),
 				mckStore.EXPECT().Update(uaid, "456", int64(1257894000)),
 				mckWorker.EXPECT().Send("456", int64(1257894000), data),
-				mckStat.EXPECT().Increment("updates.appserver.received"),
-				mckStat.EXPECT().Timer("updates.handled", gomock.Any()),
+				mckStat.EXPECT().IncrementByRate(
+					"updates.appserver.received", int64(1), float32(0.1)),
+				mckStat.EXPECT().TimerRate(
+					"updates.handled", gomock.Any(), float32(0.1)),
 			)
 			eh.ServeMux().ServeHTTP(resp, req)
 
@@ -449,13 +455,16 @@ func TestEndpointPinger(t *testing.T) {
 			}
 			gomock.InOrder(
 				mckStore.EXPECT().KeyToIDs("123").Return(uaid, "456", nil),
-				mckStat.EXPECT().Increment("updates.appserver.incoming"),
+				mckStat.EXPECT().IncrementByRate(
+					"updates.appserver.incoming", int64(1), float32(0.1)),
 				mckPinger.EXPECT().Send(uaid, int64(7), "").Return(
 					true, errors.New("oops")),
 				mckStore.EXPECT().Update(uaid, "456", int64(7)),
 				mckWorker.EXPECT().Send("456", int64(7), ""),
-				mckStat.EXPECT().Increment("updates.appserver.received"),
-				mckStat.EXPECT().Timer("updates.handled", gomock.Any()),
+				mckStat.EXPECT().IncrementByRate(
+					"updates.appserver.received", int64(1), float32(0.1)),
+				mckStat.EXPECT().TimerRate(
+					"updates.handled", gomock.Any(), float32(0.1)),
 			)
 			eh.ServeMux().ServeHTTP(resp, req)
 
@@ -499,12 +508,14 @@ func TestEndpointDelivery(t *testing.T) {
 				uaid := "f7e9fc483f7344c398701b6fa0e85e4f"
 				chid := "737b7a0d25674be4bb184f015fce02cf"
 				gomock.InOrder(
-					mckStat.EXPECT().Increment("updates.routed.outgoing"),
+					mckStat.EXPECT().IncrementByRate(
+						"updates.routed.outgoing", int64(1), float32(0.1)),
 					mckRouter.EXPECT().Route(nil, uaid, chid, int64(3), timeNow().UTC(),
 						"", "").Return(true, nil),
 					mckStat.EXPECT().Increment("router.broadcast.hit"),
 					mckStat.EXPECT().Timer("updates.routed.hits", gomock.Any()),
-					mckStat.EXPECT().Increment("updates.appserver.received"),
+					mckStat.EXPECT().IncrementByRate("updates.appserver.received",
+						int64(1), float32(0.1)),
 				)
 				ok := eh.deliver(nil, uaid, chid, 3, "", "")
 				So(ok, ShouldBeTrue)
@@ -523,9 +534,11 @@ func TestEndpointDelivery(t *testing.T) {
 				}
 				gomock.InOrder(
 					mckStore.EXPECT().KeyToIDs("123").Return("123", "456", nil),
-					mckStat.EXPECT().Increment("updates.appserver.incoming"),
+					mckStat.EXPECT().IncrementByRate(
+						"updates.appserver.incoming", int64(1), float32(0.1)),
 					mckStore.EXPECT().Update("123", "456", int64(1)).Return(nil),
-					mckStat.EXPECT().Increment("updates.routed.outgoing"),
+					mckStat.EXPECT().IncrementByRate(
+						"updates.routed.outgoing", int64(1), float32(0.1)),
 					mckRouter.EXPECT().Route(nil, "123", "456", int64(1),
 						gomock.Any(), "reqID", "").Return(false, nil),
 					mckStat.EXPECT().Increment("router.broadcast.miss"),
@@ -565,7 +578,8 @@ func TestEndpointDelivery(t *testing.T) {
 				updateErr := ErrInvalidChannel
 				gomock.InOrder(
 					mckStore.EXPECT().KeyToIDs("123").Return("123", "456", nil),
-					mckStat.EXPECT().Increment("updates.appserver.incoming"),
+					mckStat.EXPECT().IncrementByRate(
+						"updates.appserver.incoming", int64(1), float32(0.1)),
 					mckStore.EXPECT().Update("123", "456", int64(2)).Return(updateErr),
 					mckStat.EXPECT().Increment("updates.appserver.error"),
 				)
@@ -593,13 +607,15 @@ func TestEndpointDelivery(t *testing.T) {
 
 			Convey("And router delivery fails, local succeeds", func() {
 				gomock.InOrder(
-					mckStat.EXPECT().Increment("updates.routed.outgoing"),
+					mckStat.EXPECT().IncrementByRate("updates.routed.outgoing",
+						int64(1), float32(0.1)),
 					mckRouter.EXPECT().Route(nil, uaid, chid, version,
 						gomock.Any(), "", data).Return(false, nil),
 					mckStat.EXPECT().Increment("router.broadcast.miss"),
 					mckStat.EXPECT().Timer("updates.routed.misses", gomock.Any()),
 					mckWorker.EXPECT().Send(chid, version, data).Return(nil),
-					mckStat.EXPECT().Increment("updates.appserver.received"),
+					mckStat.EXPECT().IncrementByRate(
+						"updates.appserver.received", int64(1), float32(0.1)),
 				)
 
 				ok := eh.deliver(nil, uaid, chid, version, "", data)
@@ -608,13 +624,15 @@ func TestEndpointDelivery(t *testing.T) {
 
 			Convey("And router delivery succeeds, local succeeds", func() {
 				gomock.InOrder(
-					mckStat.EXPECT().Increment("updates.routed.outgoing"),
+					mckStat.EXPECT().IncrementByRate("updates.routed.outgoing",
+						int64(1), float32(0.1)),
 					mckRouter.EXPECT().Route(nil, uaid, chid, version,
 						gomock.Any(), "", data).Return(true, nil),
 					mckStat.EXPECT().Increment("router.broadcast.hit"),
 					mckStat.EXPECT().Timer("updates.routed.hits", gomock.Any()),
 					mckWorker.EXPECT().Send(chid, version, data).Return(nil),
-					mckStat.EXPECT().Increment("updates.appserver.received"),
+					mckStat.EXPECT().IncrementByRate(
+						"updates.appserver.received", int64(1), float32(0.1)),
 				)
 
 				ok := eh.deliver(nil, uaid, chid, version, "", data)
@@ -623,14 +641,16 @@ func TestEndpointDelivery(t *testing.T) {
 
 			Convey("And router delivery succeeds, local fails", func() {
 				gomock.InOrder(
-					mckStat.EXPECT().Increment("updates.routed.outgoing"),
+					mckStat.EXPECT().IncrementByRate("updates.routed.outgoing",
+						int64(1), float32(0.1)),
 					mckRouter.EXPECT().Route(nil, uaid, chid, version,
 						gomock.Any(), "", data).Return(true, nil),
 					mckStat.EXPECT().Increment("router.broadcast.hit"),
 					mckStat.EXPECT().Timer("updates.routed.hits", gomock.Any()),
 					mckWorker.EXPECT().Send(chid, version, data).Return(
 						errors.New("client gone")),
-					mckStat.EXPECT().Increment("updates.appserver.received"),
+					mckStat.EXPECT().IncrementByRate(
+						"updates.appserver.received", int64(1), float32(0.1)),
 				)
 
 				ok := eh.deliver(nil, uaid, chid, version, "", data)
@@ -639,7 +659,8 @@ func TestEndpointDelivery(t *testing.T) {
 
 			Convey("And router/local delivery fails", func() {
 				gomock.InOrder(
-					mckStat.EXPECT().Increment("updates.routed.outgoing"),
+					mckStat.EXPECT().IncrementByRate("updates.routed.outgoing",
+						int64(1), float32(0.1)),
 					mckRouter.EXPECT().Route(nil, uaid, chid, version,
 						gomock.Any(), "", data).Return(false, nil),
 					mckStat.EXPECT().Increment("router.broadcast.miss"),

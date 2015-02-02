@@ -426,7 +426,7 @@ func (b *EtcdBalancer) Fetch() (peers *EtcdPeers, err error) {
 		b.metrics.Increment("balancer.fetch.error")
 		return nil, err
 	}
-	b.metrics.Increment("balancer.fetch.success")
+	b.metrics.IncrementByRate("balancer.fetch.success", 1, 0.1)
 	if peers, err = b.filterPeers(response.Node); err != nil {
 		if b.log.ShouldLog(ERROR) {
 			b.log.Error("balancer", "Failed to filter peers from etcd", LogFields{
@@ -459,7 +459,7 @@ func (b *EtcdBalancer) Publish() (err error) {
 		b.metrics.Increment("balancer.publish.error")
 		return err
 	}
-	b.metrics.Increment("balancer.publish.success")
+	b.metrics.IncrementByRate("balancer.publish.success", 1, 0.1)
 	return nil
 }
 

@@ -146,11 +146,11 @@ func (h *SocketHandler) PushSocketHandler(ws *websocket.Conn) {
 		now := time.Now()
 		// Clean-up the resources
 		worker.Close()
-		h.metrics.Timer("client.socket.lifespan", now.Sub(worker.Born()))
-		h.metrics.Increment("client.socket.disconnect")
+		h.metrics.TimerRate("client.socket.lifespan", now.Sub(worker.Born()), 0.1)
+		h.metrics.IncrementByRate("client.socket.disconnect", 1, 0.1)
 	}()
 
-	h.metrics.Increment("client.socket.connect")
+	h.metrics.IncrementByRate("client.socket.connect", 1, 0.1)
 
 	worker.Run()
 	if h.logger.ShouldLog(INFO) {

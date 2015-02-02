@@ -102,11 +102,15 @@ func (h *EndpointHandler) setApp(app *Application) {
 	h.tokenKey = app.TokenKey()
 	h.server = NewServeCloser(&http.Server{
 		ConnState: func(c net.Conn, state http.ConnState) {
+			var name string
 			if state == http.StateNew {
-				h.metrics.Increment("endpoint.socket.connect")
-			} else if state == http.StateClosed {
-				h.metrics.Increment("endpoint.socket.disconnect")
+				name = "endpoint.socket.connect"
+			} else if isTerminalState(state) {
+				name = "endpoint.socket.disconnect"
+			} else {
+				return
 			}
+			h.metrics.IncrementByRate(name, 1, 0.1)
 		},
 		Handler: &LogHandler{h.mux, h.logger},
 		ErrorLog: log.New(&LogWriter{
@@ -224,7 +228,7 @@ func (h *EndpointHandler) UpdateHandler(resp http.ResponseWriter, req *http.Requ
 				"successful": strconv.FormatBool(updateSent)})
 		}
 		if updateSent {
-			h.metrics.Timer("updates.handled", now.Sub(timer))
+			h.metrics.TimerRate("updates.handled", now.Sub(timer), 0.1)
 		}
 	}()
 
@@ -272,7 +276,7 @@ func (h *EndpointHandler) UpdateHandler(resp http.ResponseWriter, req *http.Requ
 	}
 
 	// At this point we should have a valid endpoint in the URL
-	h.metrics.Increment("updates.appserver.incoming")
+	h.metrics.IncrementByRate("updates.appserver.incoming", 1, 0.1)
 
 	// is there a Proprietary Ping for this?
 	updateSent, err = h.doPropPing(uaid, version, data)
@@ -283,7 +287,7 @@ func (h *EndpointHandler) UpdateHandler(resp http.ResponseWriter, req *http.Requ
 		}
 	} else if updateSent {
 		// Neat! Might as well return.
-		h.metrics.Increment("updates.appserver.received")
+		h.metrics.IncrementByRate("updates.appserver.received", 1, 0.1)
 		writeSuccess(resp)
 		return
 	}
@@ -335,7 +339,7 @@ func (h *EndpointHandler) deliver(cn http.CloseNotifier, uaid, chid string,
 	shouldRoute := h.alwaysRoute || !workerConnected
 
 	if shouldRoute {
-		h.metrics.Increment("updates.routed.outgoing")
+		h.metrics.IncrementByRate("updates.routed.outgoing", 1, 0.1)
 		// Abort routing if the connection goes away.
 		var cancelSignal <-chan bool
 		if cn != nil {
@@ -370,7 +374,7 @@ func (h *EndpointHandler) deliver(cn http.CloseNotifier, uaid, chid string,
 	// Increment the appropriate final metric whether deliver did or
 	// did not work
 	if delivered {
-		h.metrics.Increment("updates.appserver.received")
+		h.metrics.IncrementByRate("updates.appserver.received", 1, 0.1)
 	} else {
 		h.metrics.Increment("updates.appserver.rejected")
 	}

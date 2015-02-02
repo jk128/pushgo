@@ -392,7 +392,7 @@ func (w *WorkerWS) Hello(header *RequestHeader, message []byte) (err error) {
 		}
 		return err
 	}
-	w.metrics.Increment("updates.client.hello")
+	w.metrics.IncrementByRate("updates.client.hello", 1, 0.1)
 	if w.logger.ShouldLog(INFO) {
 		w.logger.Info("worker", "Client successfully connected",
 			LogFields{"rid": w.logID})
@@ -593,7 +593,7 @@ func (w *WorkerWS) Ack(_ *RequestHeader, message []byte) (err error) {
 	if len(request.Updates) == 0 && len(request.Expired) == 0 {
 		return ErrNoParams
 	}
-	w.metrics.Increment("updates.client.ack")
+	w.metrics.IncrementByRate("updates.client.ack", 1, 0.1)
 	for _, update := range request.Updates {
 		if err = w.store.Drop(uaid, update.ChannelID); err != nil {
 			goto logError
@@ -686,7 +686,7 @@ func (w *WorkerWS) Register(header *RequestHeader, message []byte) (err error) {
 			"pushEndpoint": endpoint})
 	}
 	w.WriteJSON(RegisterReply{header.Type, uaid, status, request.ChannelID, endpoint})
-	w.metrics.Increment("updates.client.register")
+	w.metrics.IncrementByRate("updates.client.register", 1, 0.1)
 	return nil
 }
 
@@ -734,7 +734,7 @@ func (w *WorkerWS) Unregister(header *RequestHeader, message []byte) (err error)
 			LogFields{"rid": w.logID, "cmd": "unregister"})
 	}
 	w.WriteJSON(UnregisterReply{header.Type, 200, request.ChannelID})
-	w.metrics.Increment("updates.client.unregister")
+	w.metrics.IncrementByRate("updates.client.unregister", 1, 0.1)
 	return nil
 }
 
@@ -765,7 +765,7 @@ func (w *WorkerWS) Send(chid string, version int64, data string) (err error) {
 			if err != nil {
 				return
 			}
-			w.metrics.Timer("client.flush", endTime.Sub(startTime))
+			w.metrics.TimerRate("client.flush", endTime.Sub(startTime), 0.1)
 			return
 		}
 		pinger := w.app.PropPinger()
@@ -794,7 +794,7 @@ func (w *WorkerWS) Send(chid string, version int64, data string) (err error) {
 	// TODO: allow bulk updates.
 	updates := []Update{{chid, uint64(version), data}}
 	w.WriteJSON(FlushReply{"notification", updates, nil})
-	w.metrics.Increment("updates.sent")
+	w.metrics.IncrementByRate("updates.sent", 1, 0.1)
 	return nil
 }
 
@@ -821,7 +821,7 @@ func (w *WorkerWS) Flush(lastAccessed int64) (err error) {
 		if err != nil {
 			return
 		}
-		w.metrics.Timer("client.flush", endTime.Sub(startTime))
+		w.metrics.TimerRate("client.flush", endTime.Sub(startTime), 0.1)
 	}()
 	updates, expired, err := w.store.FetchAll(uaid, time.Unix(lastAccessed, 0))
 	if err != nil {
@@ -845,7 +845,7 @@ func (w *WorkerWS) Flush(lastAccessed int64) (err error) {
 			"updates": fmt.Sprintf("[%s]", strings.Join(logStrings, ", "))})
 	}
 	w.WriteJSON(FlushReply{"notification", updates, expired})
-	w.metrics.IncrementBy("updates.sent", int64(len(updates)))
+	w.metrics.IncrementByRate("updates.sent", int64(len(updates)), 0.1)
 	return nil
 }
 
@@ -870,7 +870,7 @@ func (w *WorkerWS) Ping(header *RequestHeader, _ []byte) (err error) {
 	} else {
 		w.WriteText("{}")
 	}
-	w.metrics.Increment("updates.client.ping")
+	w.metrics.IncrementByRate("updates.client.ping", 1, 0.1)
 	return nil
 }
 

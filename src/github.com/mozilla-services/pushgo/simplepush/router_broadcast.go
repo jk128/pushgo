@@ -143,11 +143,15 @@ func (r *BroadcastRouter) Init(app *Application, config interface{}) (err error)
 	r.maxDataLen = conf.MaxDataLen
 	r.server = NewServeCloser(&http.Server{
 		ConnState: func(c net.Conn, state http.ConnState) {
+			var name string
 			if state == http.StateNew {
-				r.metrics.Increment("router.socket.connect")
-			} else if state == http.StateClosed {
-				r.metrics.Increment("router.socket.disconnect")
+				name = "router.socket.connect"
+			} else if isTerminalState(state) {
+				name = "router.socket.disconnect"
+			} else {
+				return
 			}
+			r.metrics.IncrementByRate(name, 1, 0.1)
 		},
 		Handler:  &LogHandler{r.routerMux, r.logger},
 		ErrorLog: log.New(&LogWriter{r.logger, "router", ERROR}, "", 0)})
@@ -223,14 +227,14 @@ func (r *BroadcastRouter) RouteHandler(resp http.ResponseWriter, req *http.Reque
 	// if uid is not present, or doesn't exist in the known clients...
 	if !ok {
 		http.Error(resp, "UID Not Found", http.StatusNotFound)
-		r.metrics.Increment("updates.routed.unknown")
+		r.metrics.Increment("updates.routed.invalid")
 		return
 	}
 
 	worker, found := r.app.GetWorker(uaid)
 	if !found {
 		http.Error(resp, "UID Not Found", http.StatusNotFound)
-		r.metrics.Increment("updates.routed.unknown")
+		r.metrics.IncrementByRate("updates.routed.unknown", 1, 0.1)
 		return
 	}
 
@@ -256,7 +260,7 @@ func (r *BroadcastRouter) RouteHandler(resp http.ResponseWriter, req *http.Reque
 		}
 		goto invalidBody
 	}
-	r.metrics.Increment("updates.routed.incoming")
+	r.metrics.IncrementByRate("updates.routed.incoming", 1, 0.1)
 	// Never trust external data
 	data = routable.Data()
 	if len(data) > r.maxDataLen {
@@ -278,7 +282,7 @@ func (r *BroadcastRouter) RouteHandler(resp http.ResponseWriter, req *http.Reque
 		return
 	}
 	resp.Write([]byte("Ok"))
-	r.metrics.Increment("updates.routed.received")
+	r.metrics.IncrementByRate("updates.routed.received", 1, 0.1)
 	return
 
 invalidBody:
@@ -292,7 +296,7 @@ func (r *BroadcastRouter) dial(netw, addr string) (c net.Conn, err error) {
 		r.metrics.Increment("router.dial.error")
 		return nil, err
 	}
-	r.metrics.Increment("router.dial.success")
+	r.metrics.IncrementByRate("router.dial.success", 1, 0.1)
 	return c, nil
 }
 

@@ -131,7 +131,8 @@ func TestWorkerRegister(t *testing.T) {
 					ChannelID: chid,
 					Endpoint:  "https://example.com/123",
 				}),
-				mckStat.EXPECT().Increment("updates.client.register"),
+				mckStat.EXPECT().IncrementByRate(
+					"updates.client.register", int64(1), float32(0.1)),
 			)
 
 			err := wws.Register(&RequestHeader{Type: "register"}, []byte(
@@ -199,8 +200,8 @@ func TestWorkerFlush(t *testing.T) {
 					Updates: updates,
 					Expired: expired,
 				}),
-				mckStat.EXPECT().IncrementBy("updates.sent", int64(2)),
-				mckStat.EXPECT().Timer("client.flush", gomock.Any()),
+				mckStat.EXPECT().IncrementByRate("updates.sent", int64(2), float32(0.1)),
+				mckStat.EXPECT().TimerRate("client.flush", gomock.Any(), float32(0.1)),
 			)
 
 			err := wws.Flush(0)
@@ -213,7 +214,7 @@ func TestWorkerFlush(t *testing.T) {
 
 			gomock.InOrder(
 				mckStore.EXPECT().FetchAll(uaid, gomock.Any()).Return(nil, nil, nil),
-				mckStat.EXPECT().Timer("client.flush", gomock.Any()),
+				mckStat.EXPECT().TimerRate("client.flush", gomock.Any(), float32(0.1)),
 			)
 			err := wws.Flush(0)
 			So(err, ShouldBeNil)
@@ -286,8 +287,8 @@ func TestWorkerSend(t *testing.T) {
 					Type:    "notification",
 					Updates: []Update{{chid, uint64(version), data}},
 				}),
-				mckStat.EXPECT().Increment("updates.sent"),
-				mckStat.EXPECT().Timer("client.flush", gomock.Any()),
+				mckStat.EXPECT().IncrementByRate("updates.sent", int64(1), float32(0.1)),
+				mckStat.EXPECT().TimerRate("client.flush", gomock.Any(), float32(0.1)),
 			)
 
 			err := wws.Send(chid, version, data)
@@ -342,11 +343,12 @@ func TestWorkerACK(t *testing.T) {
 			wws.SetUAID(uaid)
 
 			gomock.InOrder(
-				mckStat.EXPECT().Increment("updates.client.ack"),
+				mckStat.EXPECT().IncrementByRate(
+					"updates.client.ack", int64(1), float32(0.1)),
 				mckStore.EXPECT().Drop(uaid, "263d09f8950b11e4a1f83c15c2c622fe"),
 				mckStore.EXPECT().Drop(uaid, "bac9d83a950b11e4bd713c15c2c622fe"),
 				mckStore.EXPECT().FetchAll(uaid, gomock.Any()).Return(nil, nil, nil),
-				mckStat.EXPECT().Timer("client.flush", gomock.Any()),
+				mckStat.EXPECT().TimerRate("client.flush", gomock.Any(), float32(0.1)),
 			)
 
 			ackBytes, _ := json.Marshal(ACKRequest{Updates: []Update{
@@ -362,10 +364,11 @@ func TestWorkerACK(t *testing.T) {
 			wws.SetUAID(uaid)
 
 			gomock.InOrder(
-				mckStat.EXPECT().Increment("updates.client.ack"),
+				mckStat.EXPECT().IncrementByRate(
+					"updates.client.ack", int64(1), float32(0.1)),
 				mckStore.EXPECT().Drop(uaid, "c778e94a950b11e4ba7f3c15c2c622fe"),
 				mckStore.EXPECT().FetchAll(uaid, gomock.Any()).Return(nil, nil, nil),
-				mckStat.EXPECT().Timer("client.flush", gomock.Any()),
+				mckStat.EXPECT().TimerRate("client.flush", gomock.Any(), float32(0.1)),
 			)
 
 			ackBytes, _ := json.Marshal(ACKRequest{
@@ -386,7 +389,8 @@ func TestWorkerACK(t *testing.T) {
 			flushExpired := []string{"c778e94a950b11e4ba7f3c15c2c622fe"}
 
 			gomock.InOrder(
-				mckStat.EXPECT().Increment("updates.client.ack"),
+				mckStat.EXPECT().IncrementByRate(
+					"updates.client.ack", int64(1), float32(0.1)),
 				mckStore.EXPECT().Drop(uaid, "3b17fc39d36547789cb97d73a3b291bb"),
 				mckStore.EXPECT().FetchAll(uaid, gomock.Any()).Return(
 					flushUpdates, flushExpired, nil),
@@ -395,8 +399,9 @@ func TestWorkerACK(t *testing.T) {
 					Updates: flushUpdates,
 					Expired: flushExpired,
 				}),
-				mckStat.EXPECT().IncrementBy("updates.sent", int64(2)),
-				mckStat.EXPECT().Timer("client.flush", gomock.Any()),
+				mckStat.EXPECT().IncrementByRate(
+					"updates.sent", int64(2), float32(0.1)),
+				mckStat.EXPECT().TimerRate("client.flush", gomock.Any(), float32(0.1)),
 			)
 
 			ackBytes, _ := json.Marshal(ACKRequest{
@@ -420,7 +425,8 @@ func TestWorkerACK(t *testing.T) {
 
 			updateErr := errors.New("core competencies not leveraged")
 			gomock.InOrder(
-				mckStat.EXPECT().Increment("updates.client.ack"),
+				mckStat.EXPECT().IncrementByRate(
+					"updates.client.ack", int64(1), float32(0.1)),
 				mckStore.EXPECT().Drop(uaid,
 					"9d7db81aace04ad993cf8241281e9dda").Return(updateErr),
 			)
@@ -429,7 +435,8 @@ func TestWorkerACK(t *testing.T) {
 
 			expiredErr := errors.New("applicative in covariant position")
 			gomock.InOrder(
-				mckStat.EXPECT().Increment("updates.client.ack"),
+				mckStat.EXPECT().IncrementByRate(
+					"updates.client.ack", int64(1), float32(0.1)),
 				mckStore.EXPECT().Drop(uaid,
 					"9d7db81aace04ad993cf8241281e9dda").Return(nil),
 				mckStore.EXPECT().Drop(uaid,
@@ -440,7 +447,8 @@ func TestWorkerACK(t *testing.T) {
 
 			fetchErr := errors.New("unavailable for legal reasons")
 			gomock.InOrder(
-				mckStat.EXPECT().Increment("updates.client.ack"),
+				mckStat.EXPECT().IncrementByRate(
+					"updates.client.ack", int64(1), float32(0.1)),
 				mckStore.EXPECT().Drop(uaid,
 					"9d7db81aace04ad993cf8241281e9dda").Return(nil),
 				mckStore.EXPECT().Drop(uaid,
@@ -506,7 +514,8 @@ func TestWorkerUnregister(t *testing.T) {
 			badChanID := "7e9ffa79e30245039504b070885123e8"
 			okChanID := "0266aa1ab42842598f6c73ff2132de1e"
 
-			mckStat.EXPECT().Increment("updates.client.unregister").Times(2)
+			mckStat.EXPECT().IncrementByRate(
+				"updates.client.unregister", int64(1), float32(0.1)).Times(2)
 
 			storeErr := errors.New("omg totes my bad")
 			mckStore.EXPECT().Unregister(uaid, badChanID).Return(storeErr)
@@ -631,9 +640,10 @@ func TestWorkerHandshakeDupe(t *testing.T) {
 			gomock.InOrder(
 				mckRouter.EXPECT().Register(uaid).Return(nil),
 				mckSocket.EXPECT().WriteText(gomock.Any()).Return(nil),
-				mckStat.EXPECT().Increment("updates.client.hello"),
+				mckStat.EXPECT().IncrementByRate(
+					"updates.client.hello", int64(1), float32(0.1)),
 				mckStore.EXPECT().FetchAll(uaid, gomock.Any()).Return(nil, nil, nil),
-				mckStat.EXPECT().Timer("client.flush", gomock.Any()),
+				mckStat.EXPECT().TimerRate("client.flush", gomock.Any(), float32(0.1)),
 			)
 			err := wws.Hello(&RequestHeader{Type: "hello"},
 				[]byte(`{"uaid":"","channelIDs":[]}`))
@@ -649,9 +659,10 @@ func TestWorkerHandshakeDupe(t *testing.T) {
 			gomock.InOrder(
 				mckRouter.EXPECT().Register(uaid).Return(nil),
 				mckSocket.EXPECT().WriteText(gomock.Any()).Return(nil),
-				mckStat.EXPECT().Increment("updates.client.hello"),
+				mckStat.EXPECT().IncrementByRate(
+					"updates.client.hello", int64(1), float32(0.1)),
 				mckStore.EXPECT().FetchAll(uaid, gomock.Any()).Return(nil, nil, nil),
-				mckStat.EXPECT().Timer("client.flush", gomock.Any()),
+				mckStat.EXPECT().TimerRate("client.flush", gomock.Any(), float32(0.1)),
 			)
 			err := wws.Hello(&RequestHeader{Type: "hello"}, []byte(
 				`{"uaid":"bd12381c953811e490cb3c15c2c622fe","channelIDs":[]}`))
@@ -743,11 +754,16 @@ func BenchmarkWorkerRun(b *testing.B) {
 	app.SetBalancer(mckBalancer)
 
 	mckStat := NewMockStatistician(mockCtrl)
-	mckStat.EXPECT().Increment("updates.client.hello").Times(b.N)
-	mckStat.EXPECT().Timer("client.flush", gomock.Any()).Times(b.N)
-	mckStat.EXPECT().Increment("updates.client.register").Times(b.N)
-	mckStat.EXPECT().Increment("updates.client.ping").Times(b.N)
-	mckStat.EXPECT().Increment("updates.client.unregister").Times(b.N)
+	mckStat.EXPECT().IncrementByRate(
+		"updates.client.hello", int64(1), float32(0.1)).Times(b.N)
+	mckStat.EXPECT().TimerRate(
+		"client.flush", gomock.Any(), float32(0.1)).Times(b.N)
+	mckStat.EXPECT().IncrementByRate(
+		"updates.client.register", int64(1), float32(0.1)).Times(b.N)
+	mckStat.EXPECT().IncrementByRate(
+		"updates.client.ping", int64(1), float32(0.1)).Times(b.N)
+	mckStat.EXPECT().IncrementByRate(
+		"updates.client.unregister", int64(1), float32(0.1)).Times(b.N)
 	app.SetMetrics(mckStat)
 
 	mckStore := NewMockStore(mockCtrl)
@@ -854,9 +870,10 @@ func TestWorkerPinger(t *testing.T) {
 				mckPinger.EXPECT().Register(testID, []byte(`{"regid":123}`)).Return(nil),
 				mckRouter.EXPECT().Register(testID),
 				mckSocket.EXPECT().WriteText(gomock.Any()),
-				mckStat.EXPECT().Increment("updates.client.hello"),
+				mckStat.EXPECT().IncrementByRate(
+					"updates.client.hello", int64(1), float32(0.1)),
 				mckStore.EXPECT().FetchAll(testID, gomock.Any()).Return(nil, nil, nil),
-				mckStat.EXPECT().Timer("client.flush", gomock.Any()),
+				mckStat.EXPECT().TimerRate("client.flush", gomock.Any(), float32(0.1)),
 			)
 			err := wws.Hello(&RequestHeader{Type: "hello"}, []byte(
 				`{"uaid":"","channelIDs":[],"connect":{"regid":123}}`))
@@ -874,9 +891,10 @@ func TestWorkerPinger(t *testing.T) {
 					"external system on fire")),
 				mckRouter.EXPECT().Register(uaid).Return(nil),
 				mckSocket.EXPECT().WriteText(gomock.Any()),
-				mckStat.EXPECT().Increment("updates.client.hello"),
+				mckStat.EXPECT().IncrementByRate(
+					"updates.client.hello", int64(1), float32(0.1)),
 				mckStore.EXPECT().FetchAll(uaid, gomock.Any()).Return(nil, nil, nil),
-				mckStat.EXPECT().Timer("client.flush", gomock.Any()),
+				mckStat.EXPECT().TimerRate("client.flush", gomock.Any(), float32(0.1)),
 			)
 
 			err := wws.Hello(&RequestHeader{Type: "hello"}, []byte(`{
@@ -956,9 +974,11 @@ func TestWorkerRun(t *testing.T) {
 				mckBalancer.EXPECT().RedirectURL().Return("", false, nil),
 				mckRouter.EXPECT().Register(testID).Return(nil),
 				mckSocket.EXPECT().WriteText(gomock.Any()),
-				mckStat.EXPECT().Increment("updates.client.hello"),
+				mckStat.EXPECT().IncrementByRate(
+					"updates.client.hello", int64(1), float32(0.1)),
 				mckStore.EXPECT().FetchAll(testID, gomock.Any()),
-				mckStat.EXPECT().Timer("client.flush", gomock.Any()),
+				mckStat.EXPECT().TimerRate(
+					"client.flush", gomock.Any(), float32(0.1)),
 			)
 
 			err := wws.Hello(&RequestHeader{Type: "hello"},
@@ -989,7 +1009,8 @@ func TestWorkerRun(t *testing.T) {
 				mckSocket.EXPECT().SetReadDeadline(gomock.Any()),
 				mckSocket.EXPECT().ReadBinary().Return([]byte("{}"), nil),
 				mckSocket.EXPECT().WriteJSON(PingReply{Type: "ping", Status: 200}),
-				mckStat.EXPECT().Increment("updates.client.ping"),
+				mckStat.EXPECT().IncrementByRate(
+					"updates.client.ping", int64(1), float32(0.1)),
 
 				mckSocket.EXPECT().SetReadDeadline(gomock.Any()),
 				mckSocket.EXPECT().ReadBinary().Return(nil, io.EOF),
@@ -1046,9 +1067,10 @@ func TestWorkerRun(t *testing.T) {
 				mckPinger.EXPECT().Register(testID, []byte(`{"id":123}`)).Return(nil),
 				mckRouter.EXPECT().Register(testID).Return(nil),
 				mckSocket.EXPECT().WriteText(gomock.Any()),
-				mckStat.EXPECT().Increment("updates.client.hello"),
+				mckStat.EXPECT().IncrementByRate(
+					"updates.client.hello", int64(1), float32(0.1)),
 				mckStore.EXPECT().FetchAll(testID, gomock.Any()).Return(nil, nil, nil),
-				mckStat.EXPECT().Timer("client.flush", gomock.Any()),
+				mckStat.EXPECT().TimerRate("client.flush", gomock.Any(), float32(0.1)),
 
 				mckSocket.EXPECT().SetReadDeadline(gomock.Any()),
 				mckSocket.EXPECT().ReadBinary().Return([]byte(`{
@@ -1067,7 +1089,8 @@ func TestWorkerRun(t *testing.T) {
 					ChannelID: "89101cfa01dd4294a00e3a813cb3da97",
 					Endpoint:  "https://example.com/123",
 				}),
-				mckStat.EXPECT().Increment("updates.client.register"),
+				mckStat.EXPECT().IncrementByRate(
+					"updates.client.register", int64(1), float32(0.1)),
 
 				mckSocket.EXPECT().SetReadDeadline(gomock.Any()),
 				mckSocket.EXPECT().ReadBinary().Return([]byte("{}"), nil),
@@ -1075,7 +1098,8 @@ func TestWorkerRun(t *testing.T) {
 					Type:   "ping",
 					Status: 200,
 				}),
-				mckStat.EXPECT().Increment("updates.client.ping"),
+				mckStat.EXPECT().IncrementByRate(
+					"updates.client.ping", int64(1), float32(0.1)),
 
 				mckSocket.EXPECT().SetReadDeadline(gomock.Any()),
 				mckSocket.EXPECT().ReadBinary().Return([]byte(`{
@@ -1088,7 +1112,8 @@ func TestWorkerRun(t *testing.T) {
 					Status:    200,
 					ChannelID: "89101cfa01dd4294a00e3a813cb3da97",
 				}),
-				mckStat.EXPECT().Increment("updates.client.unregister"),
+				mckStat.EXPECT().IncrementByRate(
+					"updates.client.unregister", int64(1), float32(0.1)),
 
 				mckSocket.EXPECT().SetReadDeadline(gomock.Any()),
 				mckSocket.EXPECT().ReadBinary().Return(nil, io.EOF),
@@ -1141,9 +1166,10 @@ func TestRunCase(t *testing.T) {
 			`{"messageType":"HELLO","uaid":"","channelIDs":[]}`), nil),
 		mckRouter.EXPECT().Register(testID).Return(nil),
 		mckSocket.EXPECT().WriteText(string(helloReply)),
-		mckStat.EXPECT().Increment("updates.client.hello"),
+		mckStat.EXPECT().IncrementByRate(
+			"updates.client.hello", int64(1), float32(0.1)),
 		mckStore.EXPECT().FetchAll(testID, gomock.Any()).Return(nil, nil, nil),
-		mckStat.EXPECT().Timer("client.flush", gomock.Any()),
+		mckStat.EXPECT().TimerRate("client.flush", gomock.Any(), float32(0.1)),
 
 		mckSocket.EXPECT().SetReadDeadline(gomock.Any()),
 		mckSocket.EXPECT().ReadBinary().Return([]byte(`{
@@ -1161,7 +1187,8 @@ func TestRunCase(t *testing.T) {
 			Status:    200,
 			ChannelID: "929c148c588746b29f4ea3dee52fdbd0",
 			Endpoint:  "https://example.com/1"}),
-		mckStat.EXPECT().Increment("updates.client.register"),
+		mckStat.EXPECT().IncrementByRate(
+			"updates.client.register", int64(1), float32(0.1)),
 
 		mckSocket.EXPECT().SetReadDeadline(gomock.Any()),
 		mckSocket.EXPECT().ReadBinary().Return(nil, io.EOF),
@@ -1202,9 +1229,10 @@ func TestWorkerHello(t *testing.T) {
 				mckBalancer.EXPECT().RedirectURL().Return("", false, nil),
 				mckRouter.EXPECT().Register(testID).Return(nil),
 				mckSocket.EXPECT().WriteText(gomock.Any()),
-				mckStat.EXPECT().Increment("updates.client.hello"),
+				mckStat.EXPECT().IncrementByRate(
+					"updates.client.hello", int64(1), float32(0.1)),
 				mckStore.EXPECT().FetchAll(testID, gomock.Any()).Return(nil, nil, nil),
-				mckStat.EXPECT().Timer("client.flush", gomock.Any()),
+				mckStat.EXPECT().TimerRate("client.flush", gomock.Any(), float32(0.1)),
 			)
 
 			err := wws.Hello(&RequestHeader{Type: "hello"}, []byte(
@@ -1247,9 +1275,10 @@ func TestWorkerHello(t *testing.T) {
 				mckBalancer.EXPECT().RedirectURL().Return("", false, nil),
 				mckRouter.EXPECT().Register(testID).Return(nil),
 				mckSocket.EXPECT().WriteText(gomock.Any()),
-				mckStat.EXPECT().Increment("updates.client.hello"),
+				mckStat.EXPECT().IncrementByRate(
+					"updates.client.hello", int64(1), float32(0.1)),
 				mckStore.EXPECT().FetchAll(testID, gomock.Any()).Return(nil, nil, nil),
-				mckStat.EXPECT().Timer("client.flush", gomock.Any()),
+				mckStat.EXPECT().TimerRate("client.flush", gomock.Any(), float32(0.1)),
 			)
 			err := wws.Hello(&RequestHeader{Type: "hello"}, []byte(`{
 				"uaid": "ba14b1f190d04e728acfe6ab71362e91",
@@ -1283,9 +1312,10 @@ func TestWorkerHello(t *testing.T) {
 				mckBalancer.EXPECT().RedirectURL().Return("", false, nil),
 				mckRouter.EXPECT().Register(testID).Return(nil),
 				mckSocket.EXPECT().WriteText(gomock.Any()),
-				mckStat.EXPECT().Increment("updates.client.hello"),
+				mckStat.EXPECT().IncrementByRate(
+					"updates.client.hello", int64(1), float32(0.1)),
 				mckStore.EXPECT().FetchAll(testID, gomock.Any()).Return(nil, nil, nil),
-				mckStat.EXPECT().Timer("client.flush", gomock.Any()),
+				mckStat.EXPECT().TimerRate("client.flush", gomock.Any(), float32(0.1)),
 			)
 
 			err := wws.Hello(&RequestHeader{Type: "hello"}, []byte(
@@ -1327,7 +1357,8 @@ func TestWorkerPing(t *testing.T) {
 
 			gomock.InOrder(
 				mckSocket.EXPECT().WriteText("{}"),
-				mckStat.EXPECT().Increment("updates.client.ping"),
+				mckStat.EXPECT().IncrementByRate(
+					"updates.client.ping", int64(1), float32(0.1)),
 			)
 
 			err := wws.Ping(&RequestHeader{Type: "ping"}, nil)
@@ -1338,7 +1369,8 @@ func TestWorkerPing(t *testing.T) {
 			app.pushLongPongs = false
 			wws.pingInt = 0 // Disable minimum ping interval check.
 
-			mckStat.EXPECT().Increment("updates.client.ping").Times(4)
+			mckStat.EXPECT().IncrementByRate(
+				"updates.client.ping", int64(1), float32(0.1)).Times(4)
 			gomock.InOrder(
 				mckSocket.EXPECT().ReadBinary().Return([]byte("{}"), nil),
 				mckSocket.EXPECT().WriteText("{}"),
@@ -1363,7 +1395,8 @@ func TestWorkerPing(t *testing.T) {
 			app.pushLongPongs = true
 			wws.pingInt = 0
 
-			mckStat.EXPECT().Increment("updates.client.ping").Times(4)
+			mckStat.EXPECT().IncrementByRate(
+				"updates.client.ping", int64(1), float32(0.1)).Times(4)
 			gomock.InOrder(
 				mckSocket.EXPECT().ReadBinary().Return([]byte("{}"), nil),
 				mckSocket.EXPECT().WriteJSON(PingReply{Type: "ping", Status: 200}),
@@ -1390,7 +1423,8 @@ func TestWorkerPing(t *testing.T) {
 			wws.SetUAID("04b1c85c95e011e49b103c15c2c622fe")
 
 			mckSocket.EXPECT().WriteJSON(PingReply{Type: "ping", Status: 200}).Times(2)
-			mckStat.EXPECT().Increment("updates.client.ping").Times(2)
+			mckStat.EXPECT().IncrementByRate(
+				"updates.client.ping", int64(1), float32(0.1)).Times(2)
 
 			err = wws.Ping(&RequestHeader{Type: "ping"}, nil)
 			So(err, ShouldBeNil)
@@ -1451,7 +1485,8 @@ func TestHandshakeFlush(t *testing.T) {
 				mckBalancer.EXPECT().RedirectURL().Return("", false, nil),
 				mckRouter.EXPECT().Register(uaid).Return(nil),
 				mckSocket.EXPECT().WriteText(gomock.Any()),
-				mckStat.EXPECT().Increment("updates.client.hello"),
+				mckStat.EXPECT().IncrementByRate(
+					"updates.client.hello", int64(1), float32(0.1)),
 				mckStore.EXPECT().FetchAll(uaid, gomock.Any()).Return(
 					updates, expired, nil),
 				mckSocket.EXPECT().WriteJSON(FlushReply{
@@ -1459,8 +1494,8 @@ func TestHandshakeFlush(t *testing.T) {
 					Updates: updates,
 					Expired: expired,
 				}),
-				mckStat.EXPECT().IncrementBy("updates.sent", int64(2)),
-				mckStat.EXPECT().Timer("client.flush", gomock.Any()),
+				mckStat.EXPECT().IncrementByRate("updates.sent", int64(2), float32(0.1)),
+				mckStat.EXPECT().TimerRate("client.flush", gomock.Any(), float32(0.1)),
 			)
 			err := wws.Hello(&RequestHeader{Type: "hello"}, []byte(`{
 				"uaid": "b0b8afe6950c11e49aa73c15c2c622fe",
@@ -1536,9 +1571,10 @@ func TestWorkerClientCollision(t *testing.T) {
 				mckBalancer.EXPECT().RedirectURL().Return("", false, nil),
 				mckRouter.EXPECT().Register(uaid).Return(nil),
 				mckSocket.EXPECT().WriteText(gomock.Any()).Return(nil),
-				mckStat.EXPECT().Increment("updates.client.hello"),
+				mckStat.EXPECT().IncrementByRate(
+					"updates.client.hello", int64(1), float32(0.1)),
 				mckStore.EXPECT().FetchAll(uaid, gomock.Any()).Return(nil, nil, nil),
-				mckStat.EXPECT().Timer("client.flush", gomock.Any()),
+				mckStat.EXPECT().TimerRate("client.flush", gomock.Any(), float32(0.1)),
 			)
 
 			err := curWorker.Hello(&RequestHeader{Type: "hello"}, []byte(
@@ -1561,9 +1597,10 @@ func TestWorkerClientCollision(t *testing.T) {
 				mckBalancer.EXPECT().RedirectURL().Return("", false, nil),
 				mckRouter.EXPECT().Register(uaid).Return(nil),
 				mckSocket.EXPECT().WriteText(gomock.Any()).Return(nil),
-				mckStat.EXPECT().Increment("updates.client.hello"),
+				mckStat.EXPECT().IncrementByRate(
+					"updates.client.hello", int64(1), float32(0.1)),
 				mckStore.EXPECT().FetchAll(uaid, gomock.Any()).Return(nil, nil, nil),
-				mckStat.EXPECT().Timer("client.flush", gomock.Any()),
+				mckStat.EXPECT().TimerRate("client.flush", gomock.Any(), float32(0.1)),
 			)
 
 			err = curWorker.Hello(&RequestHeader{Type: "hello"}, []byte(

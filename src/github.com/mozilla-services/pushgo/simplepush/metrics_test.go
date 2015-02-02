@@ -222,7 +222,6 @@ func TestMetricsIncrement(t *testing.T) {
 	gomock.InOrder(
 		mckClient.EXPECT().Inc("a", int64(1), float32(1.0)).Times(3),
 		mckClient.EXPECT().Inc("b", int64(3), float32(1.0)).Times(3),
-		mckClient.EXPECT().Inc("c", int64(0), float32(1.0)),
 	)
 	for i := 0; i < 6; i++ {
 		if i < 3 {
@@ -469,4 +468,33 @@ func TestMetricsSampleRate(t *testing.T) {
 	}
 	mckClient.EXPECT().Close()
 	m.Close()
+}
+
+func TestMetricsZero(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+	mckClient := NewMockStatsClient(mockCtrl)
+
+	m := new(Metrics)
+	m.born = timeNow().Add(-5 * time.Minute)
+	m.statsd = mckClient
+	m.storeSnapshots = true
+
+	rand.Seed(1)
+	m.IncrementBy("a", 0)
+	m.Timer("b", 0)
+	m.GaugeDelta("c", 0)
+
+	mckClient.EXPECT().Gauge("d", int64(0), float32(1.0))
+	m.Gauge("d", 0)
+
+	expected := map[string]interface{}{
+		"gauge.d":    int64(0),
+		"server.age": int64(300),
+	}
+	actual := m.Snapshot()
+	if !reflect.DeepEqual(actual, expected) {
+		t.Errorf("Wrong snapshot values: got %#v; want %#v",
+			actual, expected)
+	}
 }

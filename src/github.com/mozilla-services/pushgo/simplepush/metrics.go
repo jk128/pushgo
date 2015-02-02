@@ -246,6 +246,9 @@ func (m *Metrics) Snapshot() map[string]interface{} {
 }
 
 func (m *Metrics) IncrementByRate(metric string, count int64, rate float32) {
+	if count == 0 {
+		return
+	}
 	m.storeCounter(metric, count, rate)
 	if m.statsd == nil {
 		return
@@ -295,6 +298,9 @@ func (m *Metrics) resetCounter() (c map[string]int64) {
 func (m *Metrics) TimerRate(metric string, duration time.Duration, rate float32) {
 	// statsd supports millisecond granularity.
 	value := int64(duration / time.Millisecond)
+	if value == 0 {
+		return
+	}
 	m.storeTimer(metric, value, rate)
 	if m.statsd != nil {
 		m.statsd.Timing(m.formatTimer(metric), value, rate)
@@ -355,6 +361,9 @@ func (m *Metrics) Gauge(metric string, value int64) {
 }
 
 func (m *Metrics) GaugeDelta(metric string, delta int64) {
+	if delta == 0 {
+		return
+	}
 	m.storeGauge(metric, delta, true)
 	if m.statsd != nil {
 		m.statsd.GaugeDelta(m.formatGauge(metric), delta, 1.0)

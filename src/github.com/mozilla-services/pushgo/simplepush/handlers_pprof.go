@@ -21,7 +21,7 @@ type ProfileHandlersConfig struct {
 type ProfileHandlers struct {
 	logger   *SimpleLogger
 	listener net.Listener
-	server   *ServeCloser
+	server   Server
 	url      string
 	maxConns int
 }
@@ -61,14 +61,14 @@ func (p *ProfileHandlers) Init(app *Application, config interface{}) (err error)
 	p.url = CanonicalURL(scheme, host, port)
 
 	p.maxConns = conf.Listener.MaxConns
-	p.server = NewServeCloser(&http.Server{
+	p.server = &http.Server{
 		Handler: &LogHandler{http.DefaultServeMux, p.logger},
 		ErrorLog: log.New(&LogWriter{
 			Logger: p.logger,
 			Name:   "handlers_profile",
 			Level:  ERROR,
 		}, "", 0),
-	})
+	}
 
 	return nil
 }
@@ -77,6 +77,7 @@ func (p *ProfileHandlers) Listener() net.Listener { return p.listener }
 func (p *ProfileHandlers) MaxConns() int          { return p.maxConns }
 func (p *ProfileHandlers) URL() string            { return p.url }
 func (p *ProfileHandlers) ServeMux() ServeMux     { return http.DefaultServeMux }
+func (p *ProfileHandlers) Server() Server         { return p.server }
 
 func (p *ProfileHandlers) Start(errChan chan<- error) {
 	if p.server == nil {
@@ -100,9 +101,6 @@ func (p *ProfileHandlers) Close() (err error) {
 					LogFields{"error": err.Error(), "url": p.url})
 			}
 		}
-	}
-	if p.server != nil {
-		p.server.Close()
 	}
 	return
 }

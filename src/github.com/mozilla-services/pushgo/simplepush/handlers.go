@@ -44,7 +44,6 @@ func (r *RouteMux) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 // Server is an HTTP server, implemented by ServeCloser and http.Server.
 type Server interface {
 	Serve(net.Listener) error
-	Close() error
 }
 
 type Handler interface {
@@ -52,6 +51,7 @@ type Handler interface {
 	MaxConns() int
 	URL() string
 	ServeMux() ServeMux
+	Server() Server
 	Start(chan<- error)
 	Close() error
 }

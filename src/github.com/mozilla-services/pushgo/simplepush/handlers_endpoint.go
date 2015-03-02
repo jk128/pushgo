@@ -39,7 +39,7 @@ type EndpointHandler struct {
 	hostname    string
 	tokenKey    []byte
 	listener    net.Listener
-	server      *ServeCloser
+	server      Server
 	mux         *mux.Router
 	url         string
 	maxConns    int
@@ -80,6 +80,7 @@ func (h *EndpointHandler) Listener() net.Listener { return h.listener }
 func (h *EndpointHandler) MaxConns() int          { return h.maxConns }
 func (h *EndpointHandler) URL() string            { return h.url }
 func (h *EndpointHandler) ServeMux() ServeMux     { return (*RouteMux)(h.mux) }
+func (h *EndpointHandler) Server() Server         { return h.server }
 
 // setApp sets the parent application for this update handler.
 func (h *EndpointHandler) setApp(app *Application) {
@@ -90,7 +91,7 @@ func (h *EndpointHandler) setApp(app *Application) {
 	h.router = app.Router()
 	h.pinger = app.PropPinger()
 	h.tokenKey = app.TokenKey()
-	h.server = NewServeCloser(&http.Server{
+	h.server = &http.Server{
 		ConnState: func(c net.Conn, state http.ConnState) {
 			if state == http.StateNew {
 				h.metrics.Increment("endpoint.socket.connect")
@@ -104,7 +105,7 @@ func (h *EndpointHandler) setApp(app *Application) {
 			Name:   "handlers_endpoint",
 			Level:  ERROR,
 		}, "", 0),
-	})
+	}
 }
 
 // listenWithConfig starts a listener for this update handler.
@@ -398,7 +399,6 @@ func (h *EndpointHandler) close() (err error) {
 		h.logger.Error("handlers_endpoint", "Error closing update listener",
 			LogFields{"error": err.Error(), "url": h.url})
 	}
-	h.server.Close()
 	return
 }
 

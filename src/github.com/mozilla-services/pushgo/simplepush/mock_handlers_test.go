@@ -85,16 +85,6 @@ func (_mr *_MockServerRecorder) Serve(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Serve", arg0)
 }
 
-func (_m *MockServer) Close() error {
-	ret := _m.ctrl.Call(_m, "Close")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-func (_mr *_MockServerRecorder) Close() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
-}
-
 // Mock of Handler interface
 type MockHandler struct {
 	ctrl     *gomock.Controller
@@ -154,6 +144,16 @@ func (_m *MockHandler) ServeMux() ServeMux {
 
 func (_mr *_MockHandlerRecorder) ServeMux() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ServeMux")
+}
+
+func (_m *MockHandler) Server() Server {
+	ret := _m.ctrl.Call(_m, "Server")
+	ret0, _ := ret[0].(Server)
+	return ret0
+}
+
+func (_mr *_MockHandlerRecorder) Server() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Server")
 }
 
 func (_m *MockHandler) Start(_param0 chan<- error) {

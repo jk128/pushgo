@@ -141,7 +141,7 @@ func (r *BroadcastRouter) Init(app *Application, config interface{}) (err error)
 		return err
 	}
 	r.maxDataLen = conf.MaxDataLen
-	r.server = NewServeCloser(&http.Server{
+	r.server = &http.Server{
 		ConnState: func(c net.Conn, state http.ConnState) {
 			if state == http.StateNew {
 				r.metrics.Increment("router.socket.connect")
@@ -150,7 +150,7 @@ func (r *BroadcastRouter) Init(app *Application, config interface{}) (err error)
 			}
 		},
 		Handler:  &LogHandler{r.routerMux, r.logger},
-		ErrorLog: log.New(&LogWriter{r.logger, "router", ERROR}, "", 0)})
+		ErrorLog: log.New(&LogWriter{r.logger, "router", ERROR}, "", 0)}
 
 	return nil
 }
@@ -312,6 +312,10 @@ func (r *BroadcastRouter) ServeMux() ServeMux {
 	return (*RouteMux)(r.routerMux)
 }
 
+func (r *BroadcastRouter) Server() Server {
+	return r.server
+}
+
 func (r *BroadcastRouter) Register(uaid string) error {
 	return nil
 }
@@ -345,7 +349,6 @@ func (r *BroadcastRouter) close() (err error) {
 				LogFields{"error": err.Error(), "url": r.url})
 		}
 	}
-	r.server.Close()
 	return nil
 }
 

@@ -68,14 +68,14 @@ func (h *SocketHandler) Init(app *Application, config interface{}) (err error) {
 			LogFields{"error": err.Error()})
 		return err
 	}
-	h.server = NewServeCloser(&http.Server{
+	h.server = &http.Server{
 		Handler: &LogHandler{h.mux, h.logger},
 		ErrorLog: log.New(&LogWriter{
 			Logger: h.logger,
 			Name:   "handlers_socket",
 			Level:  ERROR,
 		}, "", 0),
-	})
+	}
 	return nil
 }
 
@@ -120,6 +120,7 @@ func (h *SocketHandler) Listener() net.Listener { return h.listener }
 func (h *SocketHandler) MaxConns() int          { return h.maxConns }
 func (h *SocketHandler) URL() string            { return h.url }
 func (h *SocketHandler) ServeMux() ServeMux     { return (*RouteMux)(h.mux) }
+func (h *SocketHandler) Server() Server         { return h.server }
 
 func (h *SocketHandler) Start(errChan chan<- error) {
 	rn, ok := h.app.Locator().(ReadyNotifier)
@@ -199,9 +200,6 @@ func (h *SocketHandler) close() (err error) {
 			h.logger.Error("handlers_socket", "Error closing WebSocket listener",
 				LogFields{"error": err.Error(), "url": h.url})
 		}
-	}
-	if h.server != nil {
-		h.server.Close()
 	}
 	return
 }

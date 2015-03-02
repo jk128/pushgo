@@ -46,7 +46,8 @@ func TestBroadcastRouter(t *testing.T) {
 	router.setClientOptions(10, 3*time.Second, 3*time.Second)
 	router.setClientTransport(&http.Transport{Dial: pipe.Dial})
 	router.listenWithConfig(listenerConfig{listener: pipe})
-	router.server = newServeWaiter(&http.Server{Handler: router.ServeMux()})
+	server := newServeWaiter(&http.Server{Handler: router.ServeMux()})
+	router.server = server
 	app.SetRouter(router)
 
 	app.SetLocator(mckLocator)
@@ -115,6 +116,7 @@ func TestBroadcastRouter(t *testing.T) {
 	})
 
 	router.Close()
+	server.Close()
 	<-errChan
 }
 
@@ -151,7 +153,8 @@ func BenchmarkRouter(b *testing.B) {
 	router.setClientOptions(10, 3*time.Second, 3*time.Second)
 	router.setClientTransport(&http.Transport{Dial: pipe.Dial})
 	router.listenWithConfig(listenerConfig{listener: pipe})
-	router.server = newServeWaiter(&http.Server{Handler: router.ServeMux()})
+	server := newServeWaiter(&http.Server{Handler: router.ServeMux()})
+	router.server = server
 	app.SetRouter(router)
 
 	app.SetLocator(mckLocator)
@@ -185,5 +188,6 @@ func BenchmarkRouter(b *testing.B) {
 
 	mckLocator.EXPECT().Close()
 	router.Close()
+	server.Close()
 	<-errChan
 }

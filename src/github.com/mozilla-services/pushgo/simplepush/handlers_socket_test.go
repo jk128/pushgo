@@ -199,6 +199,9 @@ func TestSocketOrigin(t *testing.T) {
 
 	sh := NewSocketHandler()
 	defer sh.Close()
+	shServer := newServeWaiter(&http.Server{Handler: sh.ServeMux()})
+	defer shServer.Close()
+	sh.server = shServer
 	sh.setApp(app)
 
 	pipe := newPipeListener()
@@ -206,7 +209,6 @@ func TestSocketOrigin(t *testing.T) {
 	if err := sh.listenWithConfig(listenerConfig{listener: pipe}); err != nil {
 		t.Fatalf("Error setting listener: %s", err)
 	}
-	sh.server = newServeWaiter(&http.Server{Handler: sh.ServeMux()})
 	app.SetSocketHandler(sh)
 
 	errChan := make(chan error, 1)
@@ -324,13 +326,15 @@ func TestSocketInvalidOrigin(t *testing.T) {
 
 		sh := NewSocketHandler()
 		defer sh.Close()
+		shServer := newServeWaiter(&http.Server{Handler: sh.ServeMux()})
+		defer shServer.Close()
+		sh.server = shServer
 		sh.setApp(app)
 		sh.setOrigins(allowedOrigins)
 		pipe := newPipeListener()
 		if err := sh.listenWithConfig(listenerConfig{listener: pipe}); err != nil {
 			return err
 		}
-		sh.server = newServeWaiter(&http.Server{Handler: sh.ServeMux()})
 		app.SetSocketHandler(sh)
 
 		errChan := make(chan error, 1)

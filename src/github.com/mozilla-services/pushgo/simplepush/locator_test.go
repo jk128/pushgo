@@ -97,6 +97,15 @@ func TestLocatorReadyNotify(t *testing.T) {
 		r.server = newServeWaiter(&http.Server{Handler: r.ServeMux()})
 		app.SetRouter(r)
 	}
+	// Stops a running application.
+	closeApp := func(app *Application) (err error) {
+		server, ok := app.Router().(Handler).Server().(*serveWaiter)
+		err = app.Close()
+		if ok {
+			server.Close()
+		}
+		return
+	}
 
 	// sndApp is the server broadcasting the update. The locator returns the
 	// addresses of the sender and receiver to test self-routing.
@@ -239,11 +248,11 @@ func TestLocatorReadyNotify(t *testing.T) {
 	}
 
 	mckLocator.EXPECT().Close().Times(2)
-	if err := recvApp.Close(); err != nil {
+	if err := closeApp(recvApp); err != nil {
 		t.Errorf("Error closing peer: %s", err)
 	}
 	wg.Wait()
-	if err := sndApp.Close(); err != nil {
+	if err := closeApp(sndApp); err != nil {
 		t.Errorf("Error closing self: %s", err)
 	}
 	// Wait for the handlers to stop.

@@ -145,31 +145,120 @@ func (pl *pipeListener) close() error {
 // Addr returns a fake network address for this listener.
 func (pl *pipeListener) Addr() net.Addr { return netAddr{"pipe", "pipe"} }
 
+// isTerminalState indicates whether state is the last connection state for
+// which the http.Server.ConnState hook will be called. This is used by
+// serveCloser to remove tracked connections from its map.
+func isTerminalState(state http.ConnState) bool {
+	return state == http.StateClosed || state == http.StateHijacked
+}
+
+// newServeCloser wraps srv and returns a closable HTTP server.
+func newServeCloser(srv *http.Server) (s *serveCloser) {
+	s = &serveCloser{
+		Server:    srv,
+		stateHook: srv.ConnState,
+		conns:     make(map[net.Conn]bool),
+	}
+	srv.ConnState = s.connState
+	return
+}
+
+// serveCloser is an HTTP server with graceful shutdown support. Closing a
+// server cancels any pending requests by closing the underlying connections.
+// Since a server may accept connections from multiple listeners (e.g.,
+// `srv.Serve(tcpListener)` and `srv.Serve(tlsListener)`), callers should close
+// the underlying listeners before closing the server.
+type serveCloser struct {
+	*http.Server
+	stateHook func(net.Conn, http.ConnState)
+	connsLock sync.Mutex // Protects conns.
+	conns     map[net.Conn]bool
+	closeOnce Once
+}
+
+// Close stops the server. The returned error is always nil; it is included
+// to satisfy the io.Closer interface.
+func (s *serveCloser) Close() error {
+	return s.closeOnce.Do(s.close)
+}
+
+func (s *serveCloser) close() error {
+	// Disable HTTP keep-alive for requests handled before the underlying
+	// connections are closed.
+	s.SetKeepAlivesEnabled(false)
+	s.connsLock.Lock()
+	defer s.connsLock.Unlock()
+	for c := range s.conns {
+		delete(s.conns, c)
+		c.Close()
+	}
+	return nil
+}
+
+func (s *serveCloser) hasConn(c net.Conn) bool {
+	s.connsLock.Lock()
+	defer s.connsLock.Unlock()
+	return s.conns[c]
+}
+
+func (s *serveCloser) addConn(c net.Conn) {
+	if s.closeOnce.IsDone() {
+		c.Close()
+		return
+	}
+	s.connsLock.Lock()
+	defer s.connsLock.Unlock()
+	s.conns[c] = true
+}
+
+func (s *serveCloser) removeConn(c net.Conn) {
+	if s.closeOnce.IsDone() {
+		return
+	}
+	s.connsLock.Lock()
+	defer s.connsLock.Unlock()
+	delete(s.conns, c)
+}
+
+func (s *serveCloser) connState(c net.Conn, state http.ConnState) {
+	if state == http.StateNew {
+		// Track new connections.
+		s.addConn(c)
+	} else if isTerminalState(state) {
+		// Remove connections in the terminal state (i.e., closed and hijacked).
+		// Callers must track hijacked connections separately.
+		s.removeConn(c)
+	}
+	if s.stateHook != nil {
+		s.stateHook(c, state)
+	}
+}
+
 // newServeWaiter wraps srv in a serveWaiter.
 func newServeWaiter(srv *http.Server) (t *serveWaiter) {
 	handler := srv.Handler
 	if handler == nil {
 		handler = http.DefaultServeMux
 	}
-	t = &serveWaiter{ServeCloser: NewServeCloser(srv)}
+	t = &serveWaiter{serveCloser: newServeCloser(srv)}
 	srv.Handler = &waitGroupHandler{srv: t, handler: handler}
 	return
 }
 
-// serveWaiter wraps a ServeCloser with request tracking support. This is used
+// serveWaiter wraps a serveCloser with request tracking support. This is used
 // by the tests to ensure that all cleanup functions have a chance to run, as
 // there is no explicit synchronization between the main goroutine and the
 // goroutines started by http.Server.Serve.
 type serveWaiter struct {
-	*ServeCloser
+	*serveCloser
 	serveWait sync.WaitGroup // Request counter.
 }
 
 // Close blocks until all pending requests have completed, then closes the
-// underlying ServeCloser.
+// underlying serveCloser.
 func (t *serveWaiter) Close() error {
 	t.serveWait.Wait()
-	return t.ServeCloser.Close()
+	return t.serveCloser.Close()
 }
 
 // waitGroupHandler wraps an http.Handler, updating the parent serveWaiter's

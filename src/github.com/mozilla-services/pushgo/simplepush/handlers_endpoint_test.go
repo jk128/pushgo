@@ -656,3 +656,81 @@ func TestEndpointDelivery(t *testing.T) {
 		})
 	})
 }
+
+func BenchmarkEndpointServer(b *testing.B) {
+	mockCtrl := gomock.NewController(b)
+	defer mockCtrl.Finish()
+
+	app := NewApplication()
+	mckLogger := NewMockLogger(mockCtrl)
+	mckLogger.EXPECT().ShouldLog(gomock.Any()).Return(true).AnyTimes()
+	mckLogger.EXPECT().Log(gomock.Any(), gomock.Any(),
+		gomock.Any(), gomock.Any()).AnyTimes()
+	app.SetLogger(mckLogger)
+
+	mckStat := NewMockStatistician(mockCtrl)
+	mckStat.EXPECT().Increment("endpoint.socket.connect").AnyTimes()
+	mckStat.EXPECT().Increment("endpoint.socket.disconnect").AnyTimes()
+	mckStat.EXPECT().Increment("updates.appserver.incoming").Times(b.N)
+	mckStat.EXPECT().Increment("updates.appserver.received").Times(b.N)
+	mckStat.EXPECT().Timer("updates.handled", gomock.Any()).Times(b.N)
+	app.SetMetrics(mckStat)
+
+	mckStore := NewMockStore(mockCtrl)
+	mckStore.EXPECT().KeyToIDs("123.456").Return("123", "456", nil).Times(b.N)
+	mckStore.EXPECT().Update("123", "456", gomock.Any()).Times(b.N)
+	app.SetStore(mckStore)
+
+	mckRouter := NewMockRouter(mockCtrl)
+	app.SetRouter(mckRouter)
+
+	eh := NewEndpointHandler()
+	eh.setApp(app)
+	pipe := newPipeListener()
+	defer pipe.Close()
+	if err := eh.listenWithConfig(listenerConfig{listener: pipe}); err != nil {
+		b.Fatalf("Error setting endpoint listener: %s", err)
+	}
+	defer eh.Close()
+	app.SetEndpointHandler(eh)
+
+	errChan := make(chan error, 1)
+	go eh.Start(errChan)
+
+	mckWorker := NewMockWorker(mockCtrl)
+	mckWorker.EXPECT().Send("456", gomock.Any(), "").Times(b.N)
+	app.AddWorker("123", mckWorker)
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			Dial:                pipe.Dial,
+			MaxIdleConnsPerHost: b.N,
+		},
+	}
+	uri := &url.URL{
+		Scheme: "http",
+		Host:   "example.com",
+		Path:   "/update/123.456",
+	}
+
+	b.SetParallelism(32)
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			req := &http.Request{
+				Method: "PUT",
+				URL:    uri,
+				Header: make(http.Header),
+			}
+			resp, err := client.Do(req)
+			if err != nil {
+				b.Errorf("Error sending request: %s", err)
+				continue
+			}
+			io.Copy(ioutil.Discard, resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode != 200 {
+				b.Errorf("Wrong status code: got %d; want 200", resp.StatusCode)
+			}
+		}
+	})
+}

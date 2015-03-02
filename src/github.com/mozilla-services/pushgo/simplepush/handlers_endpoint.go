@@ -64,22 +64,12 @@ func (h *EndpointHandler) Init(app *Application, config interface{}) (err error)
 	conf := config.(*EndpointHandlerConfig)
 	h.setApp(app)
 
-	if h.listener, err = conf.Listener.Listen(); err != nil {
+	if err = h.listenWithConfig(conf.Listener); err != nil {
 		h.logger.Panic("handlers_endpoint", "Could not attach update listener",
 			LogFields{"error": err.Error()})
 		return err
 	}
 
-	var scheme string
-	if conf.Listener.UseTLS() {
-		scheme = "https"
-	} else {
-		scheme = "http"
-	}
-	host, port := HostPort(h.listener, app)
-	h.url = CanonicalURL(scheme, host, port)
-
-	h.maxConns = conf.Listener.MaxConns
 	h.setMaxDataLen(conf.MaxDataLen)
 	h.alwaysRoute = conf.AlwaysRoute
 
@@ -115,6 +105,23 @@ func (h *EndpointHandler) setApp(app *Application) {
 			Level:  ERROR,
 		}, "", 0),
 	})
+}
+
+// listenWithConfig starts a listener for this update handler.
+func (h *EndpointHandler) listenWithConfig(conf ListenerConfig) (err error) {
+	if h.listener, err = conf.Listen(); err != nil {
+		return err
+	}
+	var scheme string
+	if conf.UseTLS() {
+		scheme = "https"
+	} else {
+		scheme = "http"
+	}
+	host, port := HostPort(h.listener, h.app)
+	h.url = CanonicalURL(scheme, host, port)
+	h.maxConns = conf.GetMaxConns()
+	return nil
 }
 
 // setMaxDataLen sets the maximum data length to v

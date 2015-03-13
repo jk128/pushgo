@@ -2,8 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-//TODO: Add tests
-
 package dynamodb
 
 import (
@@ -603,7 +601,6 @@ func (t *Table) UpdateItem(query *ItemUpdate) (reply *ItemReply, err error) {
 
 // === Batch funcs
 func BatchGetItem(server DynamoServer, query *BatchGetQuery) (reply []BatchItemReply, err error) {
-	//TODO: verify
 	req, err := json.Marshal(query)
 	if err != nil {
 		return nil, err
@@ -618,7 +615,6 @@ func BatchGetItem(server DynamoServer, query *BatchGetQuery) (reply []BatchItemR
 }
 
 func BatchWriteItem(server DynamoServer, query *BatchWriteQuery) (reply *BatchWriteReply, err error) {
-	//TODO: verify
 	req, err := json.Marshal(query)
 	if err != nil {
 		return
@@ -643,8 +639,12 @@ func NewAttribute(atype string, attr interface{}) (at Attribute) {
 	var sattr string
 	at = make(Attribute)
 
-	// TODO: Handle sets & maps
-	// Or use encoding gob?
+	// If you wish to be clever and build methods that automatically
+	// determine the type of data you're storing, feel free to crib
+	// from goamz/dynamodb/marshaller.go.
+	// Sadly, that will require reflection, which can be expensive.
+	// For now, I'll presume that you know what you're doing and can
+	// specify the appropriate type to store.
 	switch atype {
 	case DDB_STRING:
 		sattr = attr.(string)

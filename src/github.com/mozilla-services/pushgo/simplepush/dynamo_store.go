@@ -15,13 +15,15 @@ import (
 )
 
 const (
-	DB_LABEL      = "dynamodb"
-	UAID_LABEL    = "uaid"
-	CHID_LABEL    = "chid"
-	PING_LABEL    = "proprietary_ping"
-	VERS_LABEL    = "version"
-	MODF_LABEL    = "modified"
-	CREA_LABEL    = "created"
+	DB_LABEL   = "dynamodb"
+	UAID_LABEL = "uaid"
+	CHID_LABEL = "chid"
+	PING_LABEL = "proprietary_ping"
+	VERS_LABEL = "version"
+	MODF_LABEL = "modified"
+	CREA_LABEL = "created"
+
+	// Max number of batch items allowed in a single AWS call.
 	AWS_MAX_BATCH = 25
 )
 
@@ -403,7 +405,6 @@ func (s *DynamoDBStore) FetchAll(uaid string, since time.Time) (updates []Update
 // DropAll removes all channel records for the given device ID. Implements
 // Store.DropAll().
 func (s *DynamoDBStore) DropAll(uaid string) (err error) {
-	//TODO: Pass this to a goroutine to make it non blocking.
 	all, _, err := s.FetchAll(uaid, time.Unix(0, 0))
 	if err != nil {
 		return
